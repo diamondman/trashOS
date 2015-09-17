@@ -1,5 +1,203 @@
 #include <libopencmsis/core_cm3.h>
+#include <libopencm3/stm32/usart.h>
+#include <stdio.h>
 
-void sys_tick_handler(void){
+#include <libopencm3/stm32/gpio.h>
 
+#include "syscall.h"
+#include "core.h"
+
+extern Thread TCB[];
+extern int TCB_current_index;
+extern int osSchedulerEnabled;
+
+unsigned int min_stack = 0xFFFFFFFF;
+
+void thread_changer(unsigned int *svc_args){
+  if(!osSchedulerEnabled) return;
+  //iprintf("A\r\n");
+  Thread *last_t = &TCB[TCB_current_index];
+  int last_thread = TCB_current_index;
+  int index = (TCB_current_index+1)%TCB_LEN;
+  for(int i = 0; i < TCB_LEN-1; i++){
+    //index = (TCB_current_index+i+1)%TCB_LEN;
+    if(TCB[index].status&TCB_THREAD_INUSE){
+      //if(gpio_get(GPIOC, GPIO5)){
+      //iprintf("l=%d t=%d\r\n", last_thread, index);
+      //}
+      TCB_current_index = index;
+      break;
+    }
+    index = (index+1)%TCB_LEN;
+  }
+  
+  last_t->stack = svc_args;
+  if(min_stack>svc_args)min_stack=svc_args;
+
+  if(*(last_t->stackTop) != 0xDEADBEEF && last_thread != -1){
+    iprintf("\r\nOH SHIT! Stack WRONG MAGIC\r\n"
+	    "THREAD ID: %d\r\n"
+	    "STACKTOP:  %p\r\n"
+	    "STACK:     %p\r\n",
+	    last_thread, last_t->stackTop, last_t->stack);
+    while(1){}
+  }
+    
+  if(gpio_get(GPIOC, GPIO5)){
+    iprintf("MSP: %p\r\n",
+	    __get_MSP()); 
+    }
+
+  if(TCB_current_index==last_thread){
+    //iprintf("MEH\r\n");
+    //return;
+  }else{
+    //iprintf("THREAD CHANGE\r\n");
+  }
+  //usart_send_blocking(USART1, 'A');
+  osSwitchThreadStack(TCB[last_thread].stack, TCB[TCB_current_index].stack);
+}
+
+
+void __attribute__ (( naked )) sys_tick_handler(void){
+  __asm__ volatile(
+		 "tst lr, #4\t\n" /* Check EXC_RETURN[2] */
+		 "ite eq\t\n"
+		 "mrseq r0, msp\t\n"
+		 "mrsne r0, psp\t\n"
+		 "b %[thread_changer]\t\n"
+		 : /* no output */
+		 : [thread_changer] "i" (thread_changer) /* input */
+		 : "r0" /* clobber */
+		 );
+}
+
+
+
+void prvGetRegistersFromStack( uint32_t *);
+void prvGetRegistersFromStack( uint32_t *pulFaultStackAddress )
+{
+  /* These are volatile to try and prevent the compiler/linker optimising them
+away as the variables never actually get used.  If the debugger won't show the
+values of the variables, make them global my moving their declaration outside
+of this function. */
+  //osSchedulerEnabled = false;
+
+  volatile unsigned int r0;
+  volatile unsigned int r1;
+  volatile unsigned int r2;
+  volatile unsigned int r3;
+  volatile unsigned int r12;
+  volatile unsigned int lr; /* Link register. */
+  volatile unsigned int pc; /* Program counter. */
+  volatile unsigned int psr;/* Program status register. */
+  
+  r0 = pulFaultStackAddress[ 0 ];
+  r1 = pulFaultStackAddress[ 1 ];
+  r2 = pulFaultStackAddress[ 2 ];
+  r3 = pulFaultStackAddress[ 3 ];
+
+  r12 = pulFaultStackAddress[ 4 ];
+  lr = pulFaultStackAddress[ 5 ];
+  pc = pulFaultStackAddress[ 6 ];
+  psr = pulFaultStackAddress[ 7 ];
+
+  /* When the following line is hit, the variables contain the register values. */
+  iprintf("HARDFAULT:\r\n"
+	 "\tR13: %p\r\n"
+	 "\tR0:  0x%8x\r\n"
+	 "\tR1:  0x%8x\r\n"
+	 "\tR2:  0x%8x\r\n"
+	 "\tR3:  0x%8x\r\n"
+	 "\tR12: 0x%8x\r\n"
+	 "\tLR:  0x%8x\r\n"
+	 "\tPC:  0x%8x\r\n"
+	 "\tPSR: 0x%8x \r\n",
+	 pulFaultStackAddress, r0, r1, r2, r3, r12, lr, pc, psr);
+
+  for( ;; );
+}
+
+
+
+
+//static void hard_fault_handler( void ) __attribute__( ( naked ) );
+void __attribute__( ( naked ) ) hard_fault_handler(void)
+{
+      __asm volatile
+	(
+	         " tst lr, #4                                \n"
+		 " ite eq                                    \n"
+		 " mrseq r0, msp                             \n"
+		 " mrsne r0, psp                             \n"
+		 " ldr r1, [r0, #24]                         \n"
+		 " ldr r2, handler2_address_const            \n"
+		 " bx r2                                     \n"
+		 " handler2_address_const: .word prvGetRegistersFromStack\n"
+	 );
+}
+
+void mem_manage_handler(void){
+  for(;;);
+}
+
+
+/*
+ * SVC handler
+ * In this function svc_args points to the stack frame of the SVC caller
+ * function. Up to four 32-Bit sized arguments can be mapped easily:
+ * The first argument (r0) is in svc_args[0],
+ * The second argument (r1) in svc_args[1] and so on..
+ */
+void sv_call_handler_main(unsigned int *svc_args)
+{
+  unsigned int svc_number;
+
+  /*
+   * We can extract the SVC number from the SVC instruction. svc_args[6]
+   * points to the program counter (the code executed just before the svc
+   * call). We need to add an offset of -2 to get to the upper byte of
+   * the SVC instruction (the immediate value).
+   */
+  svc_number = ((char *)svc_args[6])[-2];
+
+  switch(svc_number)
+    {
+    case SVC_WRITE_DATA:
+      /* Handle SVC write data */
+      sv_call_write_data_handler((char *)svc_args[0],
+				 (int)svc_args[1]);
+      break;
+    case SVC_START_THREAD:
+      sv_call_start_thread_handler(svc_args, (thread_func*)svc_args[0]);
+      break;
+    default:
+      /* Unknown SVC */
+      break;
+    }
+}
+
+
+/*
+ * SVC Handler entry, put a pointer to this function into the vector table
+ */
+void __attribute__ (( naked )) sv_call_handler(void)
+{
+  /*
+   * Get the pointer to the stack frame which was saved before the SVC
+   * call and use it as first parameter for the C-function (r0)
+   * All relevant registers (r0 to r3, r12 (scratch register), r14 or lr
+   * (link register), r15 or pc (programm counter) and xPSR (program
+   * status register) are saved by hardware.
+   */
+  __asm__ volatile(
+		 "tst lr, #4\t\n" /* Check EXC_RETURN[2] */
+		 "ite eq\t\n"
+		 "mrseq r0, msp\t\n"
+		 "mrsne r0, psp\t\n"
+		 "b %[sv_call_handler_main]\t\n"
+		 : /* no output */
+		 : [sv_call_handler_main] "i" (sv_call_handler_main) /* input */
+		 : "r0" /* clobber */
+		 );
 }

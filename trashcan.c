@@ -4,9 +4,10 @@
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/cm3/systick.h>
-
+#include <libopencmsis/core_cm3.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "oled.h"
 #include "syscall.h"
@@ -15,7 +16,10 @@
 #define M_PI           3.14159265358979323846
 #endif
 
+extern bool osSchedulerEnabled;
+
 void my_thread(void);
+void my_thread2(void);
 
 static void clock_setup(void){
   rcc_clock_setup_in_hse_8mhz_out_72mhz();
@@ -31,7 +35,9 @@ static void usart_setup(void){
   rcc_periph_clock_enable(RCC_GPIOA);
   rcc_periph_clock_enable(RCC_AFIO);
   rcc_periph_clock_enable(RCC_USART1);
+  rcc_periph_clock_enable(RCC_USART2);
 
+  //USART 1
   gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,
                 GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO_USART1_TX);
   gpio_set_mode(GPIOA, GPIO_MODE_INPUT,
@@ -47,6 +53,23 @@ static void usart_setup(void){
   //USART_CR1(USART1) |= USART_CR1_RXNEIE;
 
   usart_enable(USART1);
+
+  //USART 2
+  gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,
+                GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO_USART2_TX);
+  gpio_set_mode(GPIOA, GPIO_MODE_INPUT,
+                GPIO_CNF_INPUT_FLOAT, GPIO_USART2_RX);
+  
+  usart_set_baudrate(USART2, 9600);
+  usart_set_databits(USART2, 8);
+  usart_set_stopbits(USART2, USART_STOPBITS_1);
+  usart_set_mode(USART2, USART_MODE_TX_RX);
+  usart_set_parity(USART2, USART_PARITY_NONE);
+  usart_set_flow_control(USART2, USART_FLOWCONTROL_NONE);
+  
+  //USART_CR1(USART2) |= USART_CR1_RXNEIE;
+  
+  usart_enable(USART2);
 }
 
 static void spi_setup(void){
@@ -171,7 +194,7 @@ static void sys_tick_setup(void) {
 
   /* 9000000/9000 = 1000 overflows per second - every 1ms one interrupt */
   /* SysTick interrupt every N clock pulses: set reload to N-1 */
-  systick_set_reload(8999);
+  systick_set_reload(100000+8999);
 
   systick_interrupt_enable();
 
@@ -179,24 +202,24 @@ static void sys_tick_setup(void) {
   systick_counter_enable();
 }
 
-static int __attribute__ ((noinline)) do_a_thing(int a){
-  return a + 5;
-}
+uint16_t theta = 270;
 
 int main(void){
   clock_setup();
   gpio_setup();
   usart_setup();
+  iprintf("HI\r\n");
   tim_setup();
   spi_setup();
   oled_setup();
   sys_tick_setup();
 
-  int a = do_a_thing(6);
-  int b = do_a_thing(5);
-  printf("NOTHING: %d %d\r\n", a, b); 
+  iprintf("\r\n\r\n*******\r\n");
 
-  sv_call_write_data("derp",4);
+  iprintf("my_thread: %p\r\n", my_thread);
+  sv_call_start_thread(my_thread);
+  sv_call_start_thread(my_thread2);
+  //__disable_irq();
 
   for(int i = 0; i<25; i++)__asm__("NOP");
   oled_data_mode();
@@ -210,51 +233,84 @@ int main(void){
   for(int j = 0;j<50;j++)
     spi_send(SPI1, 0x00);
 
-  uint16_t theta = 270;
   timer_set_oc_value(TIM1, TIM_OC1, (sin(theta*(M_PI/180.0))+1)/2*(2250) );
 
   oled_cmd_mode();
   Set_Page(0);
   Set_Column(0);
-  //printf("Space is limited \r\n");
-  //printf("in a haiku\r\n");
-  //printf("so it's hard to \r\n");
-  //printf("finish what you\r\n");
+  //iprintf("Space is limited \r\n");
+  //iprintf("in a haiku\r\n");
+  //iprintf("so it's hard to \r\n");
+  //iprintf("finish what you\r\n");
   //
   //Set_Page(0);
   //Set_Column(0);
-  //printf("***************\r\n");
+  //iprintf("***************\r\n");
 
   //sv_call_write_data("Hello World!", 12);
 
-  sv_call_start_thread(my_thread);
-  
+  osSchedulerEnabled = true;
+  while(1){
+    //iprintf("BB\r\n");
+    //__WFI();
+    //for(int i = 0; i<200000; i++)__asm__("NOP");
+    //
+    ////if(gpio_get(GPIOC, GPIO5)){
+    //timer_set_oc_value(TIM1, TIM_OC1, (sin(theta*(M_PI/180.0))+1)/2*(2250) );
+    //theta = (theta + 5)%360;
+    //  //}
+  }
+}
+
+extern unsigned int min_stack;
+void my_thread(void){
+  iprintf("\r\nThread1 Started\r\n");
+  //int* i1 = (int*)malloc(sizeof(int));
+  //int* i2 = (int*)malloc(sizeof(int));
+  //*i1 = 7;
+  //*i2 = 9;
+  //iprintf("Malloc: %p=%d; %p=%d\r\n", i1, *i1, i2, *i2);
+  //free(i1);
+  //free(i2);
+  int abc=0;
+  while(1){
+    //iprintf("T1 %d\r\n", abc);
+    oled_write_char('h');
+    oled_write_char('i');
+    usart_send_blocking(USART2, 'H');
+    usart_send_blocking(USART2, 'I');
+    usart_send_blocking(USART2, '\r');
+    usart_send_blocking(USART2, '\n');
+    iprintf("T1 %d %8x\r\n", abc, min_stack);
+    abc++;
+
+
+    for(int i = 0; i<20000000; i++)__asm__("NOP");
+    // return;
+  }
+}
+
+void my_thread2(void){
+  iprintf("\r\nThread2 Started\r\n");
   while(1){
     for(int i = 0; i<200000; i++)__asm__("NOP");
-
+    
     //if(gpio_get(GPIOC, GPIO5)){
     timer_set_oc_value(TIM1, TIM_OC1, (sin(theta*(M_PI/180.0))+1)/2*(2250) );
     theta = (theta + 5)%360;
-      //}
+    //}
+
+    //iprintf("Hi Ima Thread\r\n");
+    //for(int i = 0; i<20000000; i++)__asm__("NOP");
   }
 }
 
 
-void my_thread(void){
-  printf("\r\nStarting my thing\r\n");
-  while(1){
-    //printf("YESYES!\r\n");
-    
-    unsigned int mode;
-    __asm volatile(
-		   "MRS %[mode], CONTROL\t\n"
-		   :[mode] "=X" (mode));
-    if(mode & 0x2)
-      printf("PSP\r\n");
-    else
-      printf("MSP\r\n");
-    
-    for(int i = 0; i<20000000; i++)__asm__("NOP");
-    return;
-  }
-}
+//    unsigned int mode;
+//    __asm volatile(
+//		   "MRS %[mode], CONTROL\t\n"
+//		   :[mode] "=X" (mode));
+//    if(mode & 0x2)
+//      iprintf("PSP\r\n");
+//    else
+//      iprintf("MSP\r\n");
