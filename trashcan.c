@@ -16,7 +16,7 @@
 #define M_PI           3.14159265358979323846
 #endif
 
-extern bool osSchedulerEnabled;
+//extern bool osSchedulerEnabled;
 
 void my_thread(void);
 void my_thread2(void);
@@ -196,7 +196,7 @@ static void sys_tick_setup(void) {
   /* SysTick interrupt every N clock pulses: set reload to N-1 */
   systick_set_reload(100000+8999);
 
-  systick_interrupt_enable();
+  //systick_interrupt_enable();
 
   /* Start counting. */
   systick_counter_enable();
@@ -249,7 +249,8 @@ int main(void){
 
   //sv_call_write_data("Hello World!", 12);
 
-  osSchedulerEnabled = true;
+  //osSchedulerEnabled = true;
+  systick_interrupt_enable();
   while(1){
     //iprintf("BB\r\n");
     //__WFI();
@@ -262,7 +263,6 @@ int main(void){
   }
 }
 
-extern unsigned int min_stack;
 void my_thread(void){
   iprintf("\r\nThread1 Started\r\n");
   //int* i1 = (int*)malloc(sizeof(int));
@@ -281,7 +281,7 @@ void my_thread(void){
     usart_send_blocking(USART2, 'I');
     usart_send_blocking(USART2, '\r');
     usart_send_blocking(USART2, '\n');
-    iprintf("T1 %d %8x\r\n", abc, min_stack);
+    iprintf("T1 %d\r\n", abc);
     abc++;
 
 

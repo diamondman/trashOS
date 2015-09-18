@@ -17,7 +17,7 @@
  */
 #define svc(code) __asm volatile ("svc %[immediate]"::[immediate] "I" (code))
 
-Thread volatile TCB[TCB_LEN];
+Thread TCB[TCB_LEN];
 int volatile TCB_current_index = -1;
 bool volatile osSchedulerEnabled;
 
@@ -141,11 +141,12 @@ static Thread* osCreateThread(void (*func)(void), unsigned int stack_base,
   
   t->status = TCB_THREAD_INUSE;
   t->stackTop = stack;
-  t->stack = stack+(STACK_WORD_SIZE+1-8);
+  t->stackSize = stack_size;
+  t->stack = stack+(stack_size-16);
 
-  t->stack[5] = (unsigned int)__thread_exit;
-  t->stack[6] = (unsigned int)func;
-  t->stack[7] = 0x01000000;
+  t->stack[5+8] = (unsigned int)__thread_exit;
+  t->stack[6+8] = (unsigned int)func;
+  t->stack[7+8] = 0x01000000;
   
   return t;
 }

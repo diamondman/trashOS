@@ -9,32 +9,25 @@
 
 extern Thread TCB[];
 extern int TCB_current_index;
-extern int osSchedulerEnabled;
+//extern int osSchedulerEnabled;
 
-unsigned int min_stack = 0xFFFFFFFF;
-
-void thread_changer(unsigned int *svc_args){
-  if(!osSchedulerEnabled) return;
-  //iprintf("A\r\n");
-  Thread *last_t = &TCB[TCB_current_index];
+void  thread_changer(void);
+void  thread_changer(void){
   int last_thread = TCB_current_index;
-  int index = (TCB_current_index+1)%TCB_LEN;
-  for(int i = 0; i < TCB_LEN-1; i++){
-    //index = (TCB_current_index+i+1)%TCB_LEN;
-    if(TCB[index].status&TCB_THREAD_INUSE){
-      //if(gpio_get(GPIOC, GPIO5)){
-      //iprintf("l=%d t=%d\r\n", last_thread, index);
-      //}
-      TCB_current_index = index;
-      break;
-    }
+  int index = TCB_current_index;
+  for(int i = 0; i < TCB_LEN; i++){
     index = (index+1)%TCB_LEN;
+    if(TCB[index].status & TCB_THREAD_INUSE) break;
   }
+  TCB_current_index = index;
   
-  last_t->stack = svc_args;
-  if(min_stack>svc_args)min_stack=svc_args;
+  if(last_thread == -1) goto switchit;
 
-  if(*(last_t->stackTop) != 0xDEADBEEF && last_thread != -1){
+  Thread *last_t = &TCB[last_thread];
+  last_t->stack = (unsigned int*)__get_PSP();
+
+  //Check stack overflow
+  if(*(last_t->stackTop) != 0xDEADBEEF){
     iprintf("\r\nOH SHIT! Stack WRONG MAGIC\r\n"
 	    "THREAD ID: %d\r\n"
 	    "STACKTOP:  %p\r\n"
@@ -42,34 +35,27 @@ void thread_changer(unsigned int *svc_args){
 	    last_thread, last_t->stackTop, last_t->stack);
     while(1){}
   }
-    
-  if(gpio_get(GPIOC, GPIO5)){
-    iprintf("MSP: %p\r\n",
-	    __get_MSP()); 
-    }
 
-  if(TCB_current_index==last_thread){
-    //iprintf("MEH\r\n");
-    //return;
-  }else{
-    //iprintf("THREAD CHANGE\r\n");
-  }
-  //usart_send_blocking(USART1, 'A');
-  osSwitchThreadStack(TCB[last_thread].stack, TCB[TCB_current_index].stack);
+  
+switchit:
+  osSwitchThreadStack((unsigned int)TCB[last_thread].stack,
+		      (unsigned int)TCB[TCB_current_index].stack);
+
 }
 
 
 void __attribute__ (( naked )) sys_tick_handler(void){
   __asm__ volatile(
-		 "tst lr, #4\t\n" /* Check EXC_RETURN[2] */
-		 "ite eq\t\n"
-		 "mrseq r0, msp\t\n"
-		 "mrsne r0, psp\t\n"
-		 "b %[thread_changer]\t\n"
-		 : /* no output */
-		 : [thread_changer] "i" (thread_changer) /* input */
-		 : "r0" /* clobber */
-		 );
+		   "tst lr, #4\t\n"          //Check EXC_RETURN[2] */
+		   "ittt ne\t\n"             //If not equal THEN THEN THEN 
+		   "mrsne r0, psp\t\n"       //THEN r0=process stack pointer
+		   "STMDBne r0!, {r4-r11}\n" //Back up registers to stack
+		   "msrne psp, r0\t\n"       //Save new stack position from r0
+		   "b %[thread_changer]\t\n" //Branch to main handler
+		   : /* no output */
+		   : [thread_changer] "i" (thread_changer) /* input */
+		   : "r0" /* clobber */
+		   );
 }
 
 

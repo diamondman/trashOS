@@ -34,23 +34,15 @@ unsigned int __attribute__ (( naked )) __get_CONTROL(void){
 }
 void __attribute__ (( naked )) sv_goto_process(void){
   __asm volatile(
-		 "ORR lr, lr, #0x4\t\n"
-		 "BX lr\t\n"
+		 "mrs r0, psp\t\n"      //Read psp for modification
+		 "LDMIA r0!, {r4-r11}\n"//pop off higher registers
+		 "msr psp, r0\t\n"      //Write back the psp
+		 "ORR lr, lr, #0x4\t\n" //Set Process Flag
+		 "BX lr\t\n"            //Return to process thread
 		 );
 }
 
 void osSwitchThreadStack(unsigned int oldstack, unsigned int newstack){
-//__asm volatile(
-//		 "MRS r12, PSP\n"
-//		 "STMDB r12!, {r4-r11, LR}\n"
-//		 "LDR r0, =OldPSPValue\n"
-//		 "STR r12, [r0]\n"
-//		 "LDR r0, =NewPSPValue\n"
-//		 "LDR r12, [r0]\n"
-//		 "LDMIA r12!, {r4-r11, LR}\n"
-//		 "MSR PSP, r12\n"
-//		 "BX lr\n"
-//		 );
   __set_PSP(newstack);
   sv_goto_process();  
 }

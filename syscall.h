@@ -26,9 +26,10 @@ void sv_call_start_thread_handler(unsigned int *svc_args, thread_func* func);
 typedef struct {
   unsigned int *stack;
   unsigned int *stackTop;
+  unsigned int stackSize;
   unsigned int status;
 } Thread;
 
 #define TCB_LEN 8
 #define TCB_THREAD_INUSE 0x80000000
-#define STACK_WORD_SIZE (102)
+#define STACK_WORD_SIZE (128)
