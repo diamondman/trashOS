@@ -6,28 +6,41 @@
 
 #include "syscall.h"
 #include "core.h"
+#include "isr.h"
+#include "config.h"
 
 extern Thread TCB[];
 extern int TCB_current_index;
-//extern int osSchedulerEnabled;
+extern unsigned int ticknum;
 
-void  thread_changer(void);
 void  thread_changer(void){
+  //usart_send_blocking(USART1,'*');
   int last_thread = TCB_current_index;
   int index = TCB_current_index;
   for(int i = 0; i < TCB_LEN; i++){
     index = (index+1)%TCB_LEN;
-    if(TCB[index].status & TCB_THREAD_INUSE) break;
+    ThreadStatus* ts = &TCB[index].status;
+    if(ts->runmode == THREAD_RUN){
+      //usart_send_blocking(USART1,'*');
+      break;
+    }
+    if(ts->runmode == THREAD_SLEEP &&
+       ticknum > ts->tick){
+      ts->runmode = THREAD_RUN;
+      //usart_send_blocking(USART1,'^');
+      break;
+    }
   }
   TCB_current_index = index;
   
   if(last_thread == -1) goto switchit;
-
+  
   Thread *last_t = &TCB[last_thread];
   last_t->stack = (unsigned int*)__get_PSP();
 
   //Check stack overflow
-  if(*(last_t->stackTop) != 0xDEADBEEF){
+  if(*(last_t->stackTop) != 0xDEADBEEF &&
+     last_t->status.runmode != THREAD_DISABLE){
     iprintf("\r\nOH SHIT! Stack WRONG MAGIC\r\n"
 	    "THREAD ID: %d\r\n"
 	    "STACKTOP:  %p\r\n"
@@ -38,9 +51,14 @@ void  thread_changer(void){
 
   
 switchit:
-  osSwitchThreadStack((unsigned int)TCB[last_thread].stack,
-		      (unsigned int)TCB[TCB_current_index].stack);
-
+  ticknum++;
+  if(TCB[TCB_current_index].status.runmode != THREAD_RUN){
+    //iprintf("NO THREADS! HALT!\r\n");
+    usart_send_blocking(USART1,'!');
+    sv_goto_idle();
+    //while(1){}
+  }
+  osSwitchThreadStack((unsigned int)TCB[TCB_current_index].stack);
 }
 
 
@@ -48,9 +66,9 @@ void __attribute__ (( naked )) sys_tick_handler(void){
   __asm__ volatile(
 		   "tst lr, #4\t\n"          //Check EXC_RETURN[2] */
 		   "ittt ne\t\n"             //If not equal THEN THEN THEN 
-		   "mrsne r0, psp\t\n"       //THEN r0=process stack pointer
-		   "STMDBne r0!, {r4-r11}\n" //Back up registers to stack
-		   "msrne psp, r0\t\n"       //Save new stack position from r0
+		   "mrsne r12, psp\t\n"       //THEN r0=process stack pointer
+		   "STMDBne r12!, {r4-r11}\n" //Back up registers to stack
+		   "msrne psp, r12\t\n"       //Save new stack position from r0
 		   "b %[thread_changer]\t\n" //Branch to main handler
 		   : /* no output */
 		   : [thread_changer] "i" (thread_changer) /* input */
@@ -155,7 +173,14 @@ void sv_call_handler_main(unsigned int *svc_args)
 				 (int)svc_args[1]);
       break;
     case SVC_START_THREAD:
-      sv_call_start_thread_handler(svc_args, (thread_func*)svc_args[0]);
+      sv_call_start_thread_handler((thread_func*)svc_args[0],
+				   svc_args[1]);
+      break;
+    case SVC_END_CURRENT_THREAD:
+      sv_call_end_current_thread_handler();
+      break;
+    case SVC_SLEEP_CURRENT_THREAD:
+      sv_call_sleep_current_thread_handler((unsigned short)svc_args[0]);
       break;
     default:
       /* Unknown SVC */

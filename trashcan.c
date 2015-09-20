@@ -1,3 +1,5 @@
+#include "config.h"
+
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
@@ -18,6 +20,7 @@
 
 //extern bool osSchedulerEnabled;
 
+void my_idle_thread(void);
 void my_thread(void);
 void my_thread2(void);
 
@@ -194,7 +197,7 @@ static void sys_tick_setup(void) {
 
   /* 9000000/9000 = 1000 overflows per second - every 1ms one interrupt */
   /* SysTick interrupt every N clock pulses: set reload to N-1 */
-  systick_set_reload(100000+8999);
+  systick_set_reload(SYSTICK_RELOAD);
 
   //systick_interrupt_enable();
 
@@ -208,7 +211,6 @@ int main(void){
   clock_setup();
   gpio_setup();
   usart_setup();
-  iprintf("HI\r\n");
   tim_setup();
   spi_setup();
   oled_setup();
@@ -216,11 +218,10 @@ int main(void){
 
   iprintf("\r\n\r\n*******\r\n");
 
-  iprintf("my_thread: %p\r\n", my_thread);
-  sv_call_start_thread(my_thread);
-  sv_call_start_thread(my_thread2);
-  //__disable_irq();
-
+  sv_call_start_thread(my_idle_thread, 32);
+  sv_call_start_thread(my_thread, 0);
+  sv_call_start_thread(my_thread2, 0);
+  
   for(int i = 0; i<25; i++)__asm__("NOP");
   oled_data_mode();
 
@@ -238,79 +239,33 @@ int main(void){
   oled_cmd_mode();
   Set_Page(0);
   Set_Column(0);
-  //iprintf("Space is limited \r\n");
-  //iprintf("in a haiku\r\n");
-  //iprintf("so it's hard to \r\n");
-  //iprintf("finish what you\r\n");
-  //
-  //Set_Page(0);
-  //Set_Column(0);
-  //iprintf("***************\r\n");
 
-  //sv_call_write_data("Hello World!", 12);
-
-  //osSchedulerEnabled = true;
   systick_interrupt_enable();
-  while(1){
-    //iprintf("BB\r\n");
-    //__WFI();
-    //for(int i = 0; i<200000; i++)__asm__("NOP");
-    //
-    ////if(gpio_get(GPIOC, GPIO5)){
-    //timer_set_oc_value(TIM1, TIM_OC1, (sin(theta*(M_PI/180.0))+1)/2*(2250) );
-    //theta = (theta + 5)%360;
-    //  //}
-  }
+  while(1){}
 }
 
 void my_thread(void){
-  iprintf("\r\nThread1 Started\r\n");
-  //int* i1 = (int*)malloc(sizeof(int));
-  //int* i2 = (int*)malloc(sizeof(int));
-  //*i1 = 7;
-  //*i2 = 9;
-  //iprintf("Malloc: %p=%d; %p=%d\r\n", i1, *i1, i2, *i2);
-  //free(i1);
-  //free(i2);
-  int abc=0;
-  while(1){
-    //iprintf("T1 %d\r\n", abc);
-    oled_write_char('h');
-    oled_write_char('i');
-    usart_send_blocking(USART2, 'H');
-    usart_send_blocking(USART2, 'I');
-    usart_send_blocking(USART2, '\r');
-    usart_send_blocking(USART2, '\n');
-    iprintf("T1 %d\r\n", abc);
-    abc++;
-
-
-    for(int i = 0; i<20000000; i++)__asm__("NOP");
-    // return;
+  for(int i2 = 0; i2 < 10; i2++){
+    //usart_send_blocking(USART2, 'H');
+    //usart_send_blocking(USART2, 'I');
+    //usart_send_blocking(USART2, '\r');
+    //usart_send_blocking(USART2, '\n');
+    iprintf("T1 %d\r\n", i2);
+    sleepms(1000);
   }
+  return;
 }
 
 void my_thread2(void){
-  iprintf("\r\nThread2 Started\r\n");
   while(1){
-    for(int i = 0; i<200000; i++)__asm__("NOP");
-    
-    //if(gpio_get(GPIOC, GPIO5)){
     timer_set_oc_value(TIM1, TIM_OC1, (sin(theta*(M_PI/180.0))+1)/2*(2250) );
     theta = (theta + 5)%360;
-    //}
-
-    //iprintf("Hi Ima Thread\r\n");
-    //for(int i = 0; i<20000000; i++)__asm__("NOP");
+    sleepms(1);
+    for(int i = 0; i<200000; i++)__asm__("NOP");
   }
 }
-
-
-//    unsigned int mode;
-//    __asm volatile(
-//		   "MRS %[mode], CONTROL\t\n"
-//		   :[mode] "=X" (mode));
-//    if(mode & 0x2)
-//      iprintf("PSP\r\n");
-//    else
-//      iprintf("MSP\r\n");
+void my_idle_thread(void){
+  while(1){
+    __WFI();
+  }
+}

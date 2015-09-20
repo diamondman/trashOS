@@ -4,7 +4,7 @@ LDSCRIPT = STM32f103.ld
 LDLIBS += -lm
 #LDFLAGS += -L./lib/newlib/arm-none-eabi/armv7-m/newlib
 #LDFLAGS += -L./lib/newlib/arm-none-eabi/armv7-m/libgloss/libnosys
-OBJS += oled.o syscall.o isr.o core.o
+OBJS += oled.o syscall.o isr.o core.o posix.o
 CFLAGS += -std=c99 -D_COMPILING_NEWLIB -O0 -g
 #CFLAGS += -I./lib/newlib/newlib/libc/include
 #LDFLAGS += 
