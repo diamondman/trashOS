@@ -11,23 +11,20 @@
 
 extern Thread TCB[];
 extern int TCB_current_index;
-extern unsigned int ticknum;
+extern unsigned short ticknum;
+extern bool tickoverflow;
 
 void  thread_changer(void){
-  //usart_send_blocking(USART1,'*');
   int last_thread = TCB_current_index;
   int index = TCB_current_index;
   for(int i = 0; i < TCB_LEN; i++){
     index = (index+1)%TCB_LEN;
     ThreadStatus* ts = &TCB[index].status;
-    if(ts->runmode == THREAD_RUN){
-      //usart_send_blocking(USART1,'*');
-      break;
-    }
+    if(ts->runmode == THREAD_RUN) break;
     if(ts->runmode == THREAD_SLEEP &&
-       ticknum > ts->tick){
+       ticknum >= ts->tick &&
+       tickoverflow == ts->tickoverflow){
       ts->runmode = THREAD_RUN;
-      //usart_send_blocking(USART1,'^');
       break;
     }
   }
@@ -52,11 +49,10 @@ void  thread_changer(void){
   
 switchit:
   ticknum++;
+  if(ticknum==0) tickoverflow ^= 1;
   if(TCB[TCB_current_index].status.runmode != THREAD_RUN){
-    //iprintf("NO THREADS! HALT!\r\n");
     usart_send_blocking(USART1,'!');
     sv_goto_idle();
-    //while(1){}
   }
   osSwitchThreadStack((unsigned int)TCB[TCB_current_index].stack);
 }

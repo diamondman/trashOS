@@ -23,6 +23,7 @@
 void my_idle_thread(void);
 void my_thread(void);
 void my_thread2(void);
+void my_thread3(void);
 
 static void clock_setup(void){
   rcc_clock_setup_in_hse_8mhz_out_72mhz();
@@ -219,8 +220,9 @@ int main(void){
   iprintf("\r\n\r\n*******\r\n");
 
   sv_call_start_thread(my_idle_thread, 32);
-  sv_call_start_thread(my_thread, 0);
+  //sv_call_start_thread(my_thread, 0);
   sv_call_start_thread(my_thread2, 0);
+  sv_call_start_thread(my_thread3, 0);
   
   for(int i = 0; i<25; i++)__asm__("NOP");
   oled_data_mode();
@@ -262,6 +264,12 @@ void my_thread2(void){
     theta = (theta + 5)%360;
     sleepms(1);
     for(int i = 0; i<200000; i++)__asm__("NOP");
+  }
+}
+void my_thread3(void){
+  while(1){
+    sleep((65535/4)*3);
+    usart_send_blocking(USART1, '_');
   }
 }
 void my_idle_thread(void){

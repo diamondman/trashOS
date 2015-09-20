@@ -18,6 +18,7 @@
 Thread TCB[TCB_LEN];
 int volatile TCB_current_index = -1;
 unsigned int ticknum = 0;
+bool tickoverflow = false;
 
 /*
  * Use a normal C function, the compiler will make sure that this is going
@@ -55,7 +56,6 @@ static Thread* osCreateThread(thread_func func, unsigned int stack_base,
     stack = (unsigned int*)malloc(stack_size);
   }
   *stack = 0xDEADBEEF;
-  //iprintf("STACKALLOC: %p\r\n", stack);
 
   Thread* t = &TCB[tcb_i];
   t->status.runmode = THREAD_RUN;
@@ -105,13 +105,12 @@ void __attribute__ (( naked )) sv_call_sleep_current_thread_handler(unsigned sho
 }
 
 void sv_call_sleep_current_thread_handler_main(unsigned short ticks){
-  //iprintf("Sleep %u\r\n", ticks);
   __disable_irq();
   {
-    Thread* t = &TCB[TCB_current_index];
-    t->status.runmode = THREAD_SLEEP;
-    t->status.tick = ticks+(unsigned short)ticknum;
-    //iprintf("Ticks: %u\r\n", t->status.tick);
+    ThreadStatus* ts = &TCB[TCB_current_index].status;
+    ts->runmode = THREAD_SLEEP;
+    ts->tick = ticks+(unsigned short)ticknum;
+    ts->tickoverflow = (ts->tick>ticknum)?tickoverflow:~tickoverflow;
   }
   __enable_irq();
   

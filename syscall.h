@@ -37,6 +37,7 @@ void sv_call_sleep_current_thread_handler(unsigned short);
 typedef struct {
   unsigned int runmode : 2;
   unsigned short tick;
+  unsigned short tickoverflow : 1;
 } ThreadStatus;
 
 typedef struct {
