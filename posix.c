@@ -28,7 +28,7 @@ int _write(int file, const void * s , size_t len){
       uint8_t c = (uint8_t) *s2++;
       usart_send_blocking(USART1, c);
       //usart_send_blocking(USART2, c);
-      oled_write_char(c);
+      //oled_write_char(c);
       count++;
     }
   }

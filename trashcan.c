@@ -206,6 +206,14 @@ static void sys_tick_setup(void) {
   systick_counter_enable();
 }
 
+void p_oled(const char*);
+void p_oled(const char* dat){
+  while (*dat != 0) {
+    oled_write_char(*dat++);
+    for(int i = 0; i<4000000; i++)__asm__("NOP");
+  }
+}
+
 uint16_t theta = 270;
 
 int main(void){
@@ -222,25 +230,31 @@ int main(void){
   sv_call_start_thread(my_idle_thread, 32);
   //sv_call_start_thread(my_thread, 0);
   sv_call_start_thread(my_thread2, 0);
-  sv_call_start_thread(my_thread3, 0);
-  
-  for(int i = 0; i<25; i++)__asm__("NOP");
-  oled_data_mode();
-
-  for(int j = 0;j<5;j++)
-    spi_send(SPI1, 0x00);
-
-  for(int j = 0;j<64;j++)
-    spi_send(SPI1, 0x00);
-
-  for(int j = 0;j<50;j++)
-    spi_send(SPI1, 0x00);
+  //sv_call_start_thread(my_thread3, 0);
 
   timer_set_oc_value(TIM1, TIM_OC1, (sin(theta*(M_PI/180.0))+1)/2*(2250) );
 
-  oled_cmd_mode();
   Set_Page(0);
   Set_Column(0);
+
+  //oled_send(0xAA);
+  printf("COLS %d ROWS %d\r\n", OLED_CHAR_COLS, OLED_CHAR_ROWS);
+  p_oled("0000\n"//"00000000000000000000\n"
+	 "1111\n"//"1111111111111111111111111\n"
+	 "222222\n"//"22222222222222222222\n"
+	 "33\n"//"3333333333333333333\n"
+	 "44"//"44444444444444"
+	 );
+  //show_oled_buff();
+  //oled_data_mode();
+  //Set_Page(2);
+  //Set_Column(0);
+  //for(int i = 0; i<500; i++)__asm__("NOP");
+  //iprintf("0123456789\r\n");
+  //oled_write_char('0');
+  //iprintf("WHAT!?\r\n");
+  //iprintf("08080808\r\n");
+  
 
   systick_interrupt_enable();
   while(1){}
@@ -248,11 +262,7 @@ int main(void){
 
 void my_thread(void){
   for(int i2 = 0; i2 < 10; i2++){
-    //usart_send_blocking(USART2, 'H');
-    //usart_send_blocking(USART2, 'I');
-    //usart_send_blocking(USART2, '\r');
-    //usart_send_blocking(USART2, '\n');
-    iprintf("T1 %d\r\n", i2);
+    iprintf("TT1 %d\r\n", i2);
     sleepms(1000);
   }
   return;
