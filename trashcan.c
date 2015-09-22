@@ -24,6 +24,7 @@ void my_idle_thread(void);
 void my_thread(void);
 void my_thread2(void);
 void my_thread3(void);
+void thread_usart_reader(void);
 
 static void clock_setup(void){
   rcc_clock_setup_in_hse_8mhz_out_72mhz();
@@ -230,6 +231,7 @@ int main(void){
   sv_call_start_thread(my_idle_thread, 32);
   //sv_call_start_thread(my_thread, 0);
   sv_call_start_thread(my_thread2, 0);
+  sv_call_start_thread(thread_usart_reader, 0);
   //sv_call_start_thread(my_thread3, 0);
 
   timer_set_oc_value(TIM1, TIM_OC1, (sin(theta*(M_PI/180.0))+1)/2*(2250) );
@@ -239,11 +241,11 @@ int main(void){
 
   //oled_send(0xAA);
   printf("COLS %d ROWS %d\r\n", OLED_CHAR_COLS, OLED_CHAR_ROWS);
-  p_oled("0000\n"//"00000000000000000000\n"
-	 "1111\n"//"1111111111111111111111111\n"
-	 "222222\n"//"22222222222222222222\n"
-	 "33\n"//"3333333333333333333\n"
-	 "44"//"44444444444444"
+  p_oled(//"00000000000000000000?!\n"//"00000000000000000000\n"
+	 //"1111\n"//"1111111111111111111111111\n"
+	 "222222"//"22222222222222222222\n"
+	 //"33"//"3333333333333333333\n"
+	 //"44"//"44444444444444"
 	 );
   //show_oled_buff();
   //oled_data_mode();
@@ -280,6 +282,18 @@ void my_thread3(void){
   while(1){
     sleep((65535/4)*3);
     usart_send_blocking(USART1, '_');
+  }
+}
+void thread_usart_reader(void){
+  while(1){
+    char c = usart_recv_blocking(USART1);
+    iprintf("Char: 0x%x %d\r\n", c, c);
+    if(c=='\r'){
+      iprintf("\\r\r\n");
+      c = '\n';
+    }else if(c=='\n')
+      iprintf("\\n\r\n");
+    oled_write_char(c);
   }
 }
 void my_idle_thread(void){
