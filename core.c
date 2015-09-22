@@ -53,7 +53,7 @@ void __attribute__ (( naked )) sv_goto_idle(void){
 
 void osSwitchThreadStack(unsigned int newstack){
   __set_PSP(newstack);
-  sv_goto_process();  
+  sv_goto_process();
 }
 //void inline __start_critical(void){
 //  __asm (
@@ -65,4 +65,3 @@ void osSwitchThreadStack(unsigned int newstack){
 //	 "CPSIE i\n"
 //	 );
 //}
-

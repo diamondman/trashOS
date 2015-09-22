@@ -44,7 +44,7 @@ void sv_call_write_data_handler(char *string, int length){
 
 static Thread* osCreateThread(thread_func func, unsigned int stack_base,
 			 unsigned int stack_size){
-  int tcb_i; 
+  int tcb_i;
   for(tcb_i = 0; tcb_i<TCB_LEN; tcb_i++)
     if(TCB[tcb_i].status.runmode == THREAD_DISABLE) break;
 
@@ -65,7 +65,7 @@ static Thread* osCreateThread(thread_func func, unsigned int stack_base,
   t->stack[5+8] = (unsigned int)sv_call_end_current_thread;
   t->stack[6+8] = (unsigned int)func;
   t->stack[7+8] = 0x01000000;
-  
+
   return t;
 }
 
@@ -93,7 +93,7 @@ void sv_call_sleep_current_thread_handler_main(unsigned short);
 void __attribute__ (( naked )) sv_call_sleep_current_thread_handler(unsigned short ticks){
   __asm__ volatile(
 		   "tst lr, #4\t\n"          //Check EXC_RETURN[2] */
-		   "ittt ne\t\n"             //If not equal THEN THEN THEN 
+		   "ittt ne\t\n"             //If not equal THEN THEN THEN
 		   "mrsne r12, psp\t\n"       //THEN r0=process stack pointer
 		   "STMDBne r12!, {r4-r11}\n" //Back up registers to stack
 		   "msrne psp, r12\t\n"       //Save new stack position from r0
@@ -113,6 +113,6 @@ void sv_call_sleep_current_thread_handler_main(unsigned short ticks){
     ts->tickoverflow = (ts->tick>ticknum)?tickoverflow:~tickoverflow;
   }
   __enable_irq();
-  
+
   thread_changer();
 }

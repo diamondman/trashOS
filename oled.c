@@ -151,7 +151,7 @@ inline void Set_PageAddress(uint8_t start_, uint8_t stop_){
 inline void oled_cmd_mode(void){
   if(oledmode==OLED_MODE_CMD) return;
   oledmode = OLED_MODE_CMD;
-  gpio_clear(GPIOA, GPIO1);    
+  gpio_clear(GPIOA, GPIO1);
   for(int i = 0; i<350; i++)__asm__("NOP");
 }
 
@@ -169,6 +169,10 @@ inline void Set_Page(uint8_t page){
   for(int i = 0; i<500; i++)__asm__("NOP");
 }
 
+inline void Set_Char_Column(uint8_t col){
+  Set_Column(col*(OLED_CHAR_WIDTH+OLED_CHAR_X_PADDING));
+}
+
 inline void Set_Column(uint8_t col){
   oled_cmd_mode();
   for(int i = 0; i<500; i++)__asm__("NOP");
@@ -179,7 +183,7 @@ inline void Set_Column(uint8_t col){
   for(int i = 0; i<500; i++)__asm__("NOP");
 }
 
-//inline void 
+//inline void
 
 void oled_setup(void){
   rcc_periph_clock_enable(RCC_GPIOA);
@@ -224,7 +228,7 @@ void oled_setup(void){
       spi_send(SPI1, 0x00);
     for(int i = 0; i<1000; i++)__asm__("NOP");
   }
-  
+
   Set_Display_On_Off(0x01);         // Display On (0x00/0x01)
   Set_ColumnAddress(5, 131);
 
@@ -242,7 +246,7 @@ void fontchip_select_addr(char c){
   gpio_clear(GPIOB, GPIO12);
   for(int i = 0; i<350; i++)__asm__("NOP");
   fontchip_enabled = true;
-  
+
   uint32_t addr = ((c-0x20)*8)+OLED_FONT_MEM_OFFSET;
   spi_send(SPI2, 0x0B);
   spi_send(SPI2, (addr>>16)&0xFF);
@@ -268,10 +272,10 @@ void oled_send(uint8_t dat){
 static void _oled_write_char(uint8_t);
 static void _oled_write_char(uint8_t c){
   fontchip_select_addr(c);
-  
+
   for(int _col=0; _col<OLED_CHAR_WIDTH; _col++)
     oled_send(spi_xfer(SPI2, 0x00));
- 
+
   for(int _col=0; _col<OLED_CHAR_X_PADDING; _col++)
     oled_send(0);
 
@@ -301,7 +305,7 @@ static void oled_char_clear_screen(void){
   oled_buff_row_end = 0;
   oled_buff_col_cursor = 0;
   oled_buff_active_rows = 1;
-  
+
   for(unsigned int r=0; r<OLED_CHAR_ROWS; r++){
     oled_buff[r][0] = 0;
     Set_Column(0);
@@ -309,7 +313,7 @@ static void oled_char_clear_screen(void){
     for(unsigned int col=0; col<OLED_CHAR_COLS; col++)
       _oled_write_char(' ');
   }
-  
+
   Set_Column(0);
   Set_Page(0);
 }
@@ -326,7 +330,7 @@ void oled_write_char(uint8_t c){
   if(c == '\f') return oled_char_clear_screen();
   if(c == '\r') return;
   if(c < 0x20 && c != '\n') c=' ';
-  
+
   bool did_newline = false;
   if(c != '\n'){
     if(newline_from_width) did_newline = true;
@@ -342,52 +346,34 @@ void oled_write_char(uint8_t c){
     did_newline = true;
     newline_from_width = false;
     oled_buff[oled_buff_row_end][oled_buff_col_cursor] = 0;
-    if(!newline_from_width)
+    if(!newline_from_width){
       _oled_increment_char_col_row();
+      oled_buff[oled_buff_row_end][oled_buff_col_cursor] = 0;
+    }
   }
 
   show_oled_buff(c);
 
+  unsigned int last_row_col = 0;
   if(did_newline){
+    //redraw everything
     iprintf("redraw\r\n");
     if(oled_buff_active_rows <OLED_CHAR_ROWS) oled_buff_active_rows++;
-    //redraw everything
-    for(int r = 0; r<oled_buff_active_rows-1; r++){
+    for(unsigned int r = 0; r<oled_buff_active_rows; r++){
       int rownum = (oled_buff_row_start+r) % OLED_CHAR_ROWS;
       int col = 0;
       iprintf("redraw r: %d buffr: %d\r\n", r, rownum);
-      
+
       Set_Column(0);
       Set_Page(r);
-      
+
       while (oled_buff[rownum][col] != 0)
 	_oled_write_char(oled_buff[rownum][col++]);
+      last_row_col = col;
       for(; col<OLED_CHAR_COLS; col++)
 	_oled_write_char(' ');
     }
-
-    if(oled_buff_active_rows == OLED_CHAR_ROWS){
-      Set_Column(0);
-      Set_Page(oled_buff_active_rows-1);
-      
-      for(int col=0; col<OLED_CHAR_COLS; col++)
-	_oled_write_char(' ');
-    }
-
-    //Draw last row
-    Set_Column(0);
-    Set_Page(oled_buff_active_rows-1);
-    int rownum = (oled_buff_row_start+oled_buff_active_rows-1)
-      % OLED_CHAR_ROWS;
-    int col = 0;
-    while (oled_buff[rownum][col] != 0)
-      _oled_write_char(oled_buff[rownum][col++]);
-     
-    
-    //Set_Column(0);
-    //Set_Page(oled_buff_active_rows-1);
-  }else{
+    Set_Char_Column(last_row_col);
+  } else
     _oled_write_char(c);
-  }
 }
-

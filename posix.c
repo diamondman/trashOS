@@ -62,7 +62,7 @@ void * _sbrk(ptrdiff_t incr) {
     heap_end = &end;
   }
   prev_heap_end = heap_end;
-  
+
   //if (heap_end + incr > &heap_top) {
   ///* Heap and stack collision */
   //  return (caddr_t)0;
@@ -72,4 +72,3 @@ void * _sbrk(ptrdiff_t incr) {
   return (caddr_t) prev_heap_end;
   //return (caddr_t) 0;
 }
-

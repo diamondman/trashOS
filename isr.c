@@ -29,9 +29,9 @@ void  thread_changer(void){
     }
   }
   TCB_current_index = index;
-  
+
   if(last_thread == -1) goto switchit;
-  
+
   Thread *last_t = &TCB[last_thread];
   last_t->stack = (unsigned int*)__get_PSP();
 
@@ -46,7 +46,7 @@ void  thread_changer(void){
     while(1){}
   }
 
-  
+
 switchit:
   ticknum++;
   if(ticknum==0) tickoverflow ^= 1;
@@ -61,7 +61,7 @@ switchit:
 void __attribute__ (( naked )) sys_tick_handler(void){
   __asm__ volatile(
 		   "tst lr, #4\t\n"          //Check EXC_RETURN[2] */
-		   "ittt ne\t\n"             //If not equal THEN THEN THEN 
+		   "ittt ne\t\n"             //If not equal THEN THEN THEN
 		   "mrsne r12, psp\t\n"       //THEN r0=process stack pointer
 		   "STMDBne r12!, {r4-r11}\n" //Back up registers to stack
 		   "msrne psp, r12\t\n"       //Save new stack position from r0
@@ -91,7 +91,7 @@ of this function. */
   volatile unsigned int lr; /* Link register. */
   volatile unsigned int pc; /* Program counter. */
   volatile unsigned int psr;/* Program status register. */
-  
+
   r0 = pulFaultStackAddress[ 0 ];
   r1 = pulFaultStackAddress[ 1 ];
   r2 = pulFaultStackAddress[ 2 ];
